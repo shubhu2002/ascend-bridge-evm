@@ -7,7 +7,7 @@
 		"deploy:token": "hardhat run scripts/deployToken.ts --network buildbear",
 		"deploy:vault": "hardhat run scripts/deploy.ts --network buildbear",
 		"setup": "pnpm deploy:token && pnpm deploy:vault",
-		"test:vault": "hardhat run scripts/fullVaultTest.ts --network buildbear",
+		"test:vault": "hardhat run test/fullVaultTest.ts --network buildbear",
 		"listener": "pnpm --filter listener start",
 		"dev": "pnpm setup && pnpm listener",
 		"test": "echo \"Error: no test specified\" && exit 1"

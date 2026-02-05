@@ -21,8 +21,14 @@ export async function saveEvent(e: any) {
 				token: e.token, // NULL for native ETH
 				amount: e.amount,
 				block_number: e.blockNumber,
+				metadata: e.metadata,
 			})
 			.select();
+
+		if (error?.code === '23505') {
+			console.log('⚠ Duplicate tx skipped:', e.txHash);
+			return;
+		}
 
 		if (error) {
 			console.error('❌ Supabase insert error:', error);

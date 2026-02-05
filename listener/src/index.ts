@@ -3,13 +3,14 @@ import { ethers, EventLog } from 'ethers';
 import { ABI } from './abi';
 import { saveEvent } from './db';
 import path from 'path';
-import fs from "fs";
+import fs from 'fs';
+import { getMetadata } from './tokenMetadata';
+import { syncAccountToken } from './updateAccountTokens';
 
-
-const file = path.join(__dirname, "../../deployments/addresses.json");
-export const { vault: CONTRACT_ADDRESS } = JSON.parse(fs.readFileSync(file, "utf-8"));
-
-// export const CONTRACT_ADDRESS = '0xff45Fcd36E04C07b53D909b00E915837fD1E3234';
+const file = path.join(__dirname, '../../deployments/addresses.json');
+export const { vault: CONTRACT_ADDRESS } = JSON.parse(
+	fs.readFileSync(file, 'utf-8'),
+);
 
 const provider = new ethers.JsonRpcProvider(process.env.BUILDBEAR_HTTP_RPC!);
 const contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, provider);
@@ -24,6 +25,8 @@ async function handleEvent(
 	amount: bigint,
 	ev: EventLog,
 ) {
+	const metadata = await getMetadata(provider, from, token ?? undefined);
+	console.log({ metadata });
 	await saveEvent({
 		type,
 		txHash: ev.transactionHash,
@@ -33,18 +36,21 @@ async function handleEvent(
 		amount: amount.toString(),
 		blockNumber: ev.blockNumber,
 		contract: CONTRACT_ADDRESS,
+		metadata,
 	});
 
-	console.log(`Saved ${type}`, { token, amount: amount.toString() });
+	console.log(`Saved ${type}`, metadata.symbol, amount.toString());
+
+	await syncAccountToken(from, metadata, provider, token || null);
 }
 
 export async function startListener() {
 	lastProcessedBlock = await provider.getBlockNumber();
-
+	let latestBlock = 0;
 	setInterval(async () => {
 		console.log('⛏ polling...');
 		try {
-			const latestBlock = await provider.getBlockNumber();
+			latestBlock = await provider.getBlockNumber();
 			if (latestBlock <= lastProcessedBlock) return;
 
 			console.log(`Scanning ${lastProcessedBlock + 1} → ${latestBlock}`);
@@ -59,14 +65,22 @@ export async function startListener() {
 			for (const ev of ethDeposits) {
 				if (!(ev instanceof EventLog)) continue;
 				const [from, amount] = ev.args;
-				await handleEvent(
-					'DEPOSIT',
-					null,
-					from,
-					CONTRACT_ADDRESS,
-					amount,
-					ev,
-				);
+
+				try {
+					await handleEvent(
+						'DEPOSIT',
+						null,
+						from,
+						CONTRACT_ADDRESS,
+						amount,
+						ev,
+					);
+				} catch (e) {
+					console.log(
+						'⚠ Event failed but continuing:',
+						ev.transactionHash,
+					);
+				}
 			}
 
 			// -------- ETH WITHDRAW --------
@@ -79,14 +93,22 @@ export async function startListener() {
 			for (const ev of ethWithdraws) {
 				if (!(ev instanceof EventLog)) continue;
 				const [to, amount] = ev.args;
-				await handleEvent(
-					'WITHDRAW',
-					null,
-					CONTRACT_ADDRESS,
-					to,
-					amount,
-					ev,
-				);
+
+				try {
+					await handleEvent(
+						'WITHDRAW',
+						null,
+						CONTRACT_ADDRESS,
+						to,
+						amount,
+						ev,
+					);
+				} catch (e) {
+					console.log(
+						'⚠ Event failed but continuing:',
+						ev.transactionHash,
+					);
+				}
 			}
 
 			// -------- ERC20 DEPOSIT --------
@@ -128,12 +150,12 @@ export async function startListener() {
 					ev,
 				);
 			}
-
-			lastProcessedBlock = latestBlock;
 		} catch (err) {
 			console.error('🔥 Listener error:', err);
+		} finally {
+			lastProcessedBlock = latestBlock;
 		}
-	}, 5000);
+	}, 10000);
 }
 
 startListener();
