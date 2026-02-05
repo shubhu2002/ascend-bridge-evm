@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
-import { supabase } from './db';
 import { getMetadata } from './tokenMetadata';
+import { supabase } from '.';
 
 export async function syncAccountToken(
 	address: string,

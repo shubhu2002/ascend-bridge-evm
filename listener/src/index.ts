@@ -1,11 +1,24 @@
-import 'dotenv/config';
 import { ethers, EventLog } from 'ethers';
-import { ABI } from './abi';
-import { saveEvent } from './db';
 import path from 'path';
 import fs from 'fs';
 import { getMetadata } from './tokenMetadata';
 import { syncAccountToken } from './updateAccountTokens';
+import { createClient } from '@supabase/supabase-js';
+
+import * as dotenv from 'dotenv';
+dotenv.config();
+
+export const ABI = [
+	'event DepositETH(address indexed from, uint256 amount)',
+	'event WithdrawETH(address indexed to, uint256 amount)',
+	'event DepositERC20(address indexed token, address indexed from, uint256 amount)',
+	'event WithdrawERC20(address indexed token, address indexed to, uint256 amount)',
+];
+
+export const supabase = createClient(
+	process.env.SUPABASE_URL!,
+	process.env.SUPABASE_SERVICE_ROLE_KEY!,
+);
 
 const file = path.join(__dirname, '../../deployments/addresses.json');
 export const { vault: CONTRACT_ADDRESS } = JSON.parse(
@@ -27,17 +40,36 @@ async function handleEvent(
 ) {
 	const metadata = await getMetadata(provider, from, token ?? undefined);
 	console.log({ metadata });
-	await saveEvent({
-		type,
-		txHash: ev.transactionHash,
-		from,
-		to,
-		token,
-		amount: amount.toString(),
-		blockNumber: ev.blockNumber,
-		contract: CONTRACT_ADDRESS,
-		metadata,
-	});
+
+	try {
+		const { data, error } = await supabase
+			.from('evm_birdge_events')
+			.insert({
+				contract_address: CONTRACT_ADDRESS,
+				tx_hash: ev.transactionHash,
+				event_type: type,
+				from_address: from,
+				to_address: to,
+				token: token, // NULL for native ETH
+				amount: amount.toString(),
+				block_number: ev.blockNumber,
+				metadata: metadata,
+			})
+			.select();
+
+		if (error?.code === '23505') {
+			console.log('⚠ Duplicate tx skipped:', ev.transactionHash);
+			return;
+		}
+
+		if (error) {
+			console.error('❌ Supabase insert error:', error);
+			throw error;
+		}
+		console.log('✅ Supabase insert success:', data);
+	} catch (error) {
+		console.log(error);
+	}
 
 	console.log(`Saved ${type}`, metadata.symbol, amount.toString());
 
@@ -158,4 +190,6 @@ export async function startListener() {
 	}, 10000);
 }
 
-startListener();
+startListener().catch((error) => {
+	console.log(error);
+});
