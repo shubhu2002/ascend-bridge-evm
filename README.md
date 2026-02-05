@@ -20,26 +20,35 @@ ascend-bridge-evm/
 │   └─ TestToken.sol
 │
 ├─ scripts/                   # Hardhat scripts
-│   ├─ deployVault.ts
-│   ├─ deployToken.ts
-│   ├─ fullVaultTest.ts
-│   └─ utils/addresses.ts
+│   ├─ deploy.ts              # deploy contract
+│   ├─ deployToken.ts         # deploy / mint TEST Token
+│   └─ utils.ts
 │
 ├─ deployments/
 │   └─ addresses.json         # Auto‑generated contract addresses
 │
-├─ listener/                  # Indexer service (separate package)
+├─ listener/                  # Indexer listening api service (separate package)
+│   ├─ dist/
+│   │   ├─ index.js
+│   │   ├─ tokenMetadata.js
+│   │   └─ updateAccountTokens.js
 │   ├─ src/
 │   │   ├─ index.ts
-│   │   ├─ db.ts
-│   │   ├─ abi.ts
-│   │   └─ config.ts
-│   └─ package.json
+│   │   ├─ tokenMetadata.ts
+│   │   └─ updateAccountTokens.ts
+│   ├─ package.json
+│   ├─ .node-version
+│   ├─ pnpm-lock.yaml
+│   └─ tsconfig.json
 │
+├─ test/
+│   └─ fullVaultTest.ts
+│ 
 ├─ hardhat.config.ts
-├─ pnpm-workspace.yaml
 ├─ package.json
-└─ README.md
+├─ pnpm-lock.yaml
+├─ README.md
+└─ tsconfig.json
 ```
 
 ---
