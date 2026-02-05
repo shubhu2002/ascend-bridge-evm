@@ -8,7 +8,7 @@
 		"deploy:vault": "hardhat run scripts/deploy.ts --network buildbear",
 		"setup": "pnpm deploy:token && pnpm deploy:vault",
 		"test:vault": "hardhat run test/fullVaultTest.ts --network buildbear",
-		"listener": "pnpm --filter listener start",
+		"listener": "pnpm --filter listener dev",
 		"dev": "pnpm setup && pnpm listener",
 		"test": "echo \"Error: no test specified\" && exit 1"
 	},
@@ -40,6 +40,7 @@
 		"typescript": "^5.9.3"
 	},
 	"dependencies": {
-		"@supabase/supabase-js": "^2.94.0"
+		"@supabase/supabase-js": "^2.94.0",
+		"hardhat-verify": "^1.0.0"
 	}
 }

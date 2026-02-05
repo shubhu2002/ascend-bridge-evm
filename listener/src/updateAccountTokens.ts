@@ -1,13 +1,15 @@
-import { ethers } from 'ethers';
-import { getMetadata } from './tokenMetadata';
 import { supabase } from '.';
 
-export async function syncAccountToken(
+type EventType = 'DEPOSIT' | 'WITHDRAW';
+
+export async function applyAccountDelta(
 	address: string,
-	metadata: any,
-	provider: ethers.Provider,
-	token?: string | null,
+	token: string | null,
+	amount: bigint,
+	type: EventType,
 ) {
+	const tokenKey = token ?? 'ETH';
+	const delta = type === 'DEPOSIT' ? amount : -amount;
 	const { data, error } = await supabase
 		.from('ascend-accounts')
 		.select('tokens')
@@ -16,42 +18,53 @@ export async function syncAccountToken(
 
 	if (error) throw error;
 
-	const portfolioTokens = data?.tokens ?? {};
+	const tokens = data?.tokens ?? {};
 
-	// ---------- TOKEN UPDATE ----------
-	if (token) {
-		portfolioTokens[token] = {
-			available_balance: metadata.available_balance,
-			symbol: metadata.symbol,
-			decimals: metadata.decimals,
-			contract_type: metadata.contract_type,
-		};
+	const current = BigInt(tokens[tokenKey]?.available_balance ?? '0');
+	const newBalance = current + delta;
 
-		console.log(
-			'🪙 Synced token:',
-			address,
-			metadata.symbol,
-			metadata.available_balance,
-		);
+	if (newBalance < 0n) {
+		throw new Error(`Negative balance detected for ${address}`);
 	}
 
-	// ---------- ETH UPDATE (ALWAYS) ----------
-	let ethMetadata;
-	try {
-		ethMetadata = await getMetadata(provider, address); // no token = native
-	} catch {
-		console.log('⚠ ETH refresh failed');
-	}
+	tokens[tokenKey] = {
+		available_balance: newBalance.toString(),
+	};
 
 	const { error: updateError } = await supabase
 		.from('ascend-accounts')
-		.update({
-			tokens: portfolioTokens,
-			balance: ethMetadata?.available_balance,
-		})
+		.update({ tokens })
 		.eq('address', address);
 
 	if (updateError) throw updateError;
 
-	console.log('💰 Synced ETH:', address, ethMetadata?.available_balance);
+	console.log(
+		`💰 ${type} ${tokenKey}:`,
+		address,
+		current.toString(),
+		'→',
+		newBalance.toString(),
+	);
+}
+
+export async function ensureAccountExists(address: string) {
+	const { data } = await supabase
+		.from('ascend-accounts')
+		.select('address')
+		.eq('address', address)
+		.maybeSingle();
+
+	if (data) return;
+
+	const { error } = await supabase.from('ascend-accounts').insert({
+		address,
+		tokens: {},
+		created_at: new Date().toISOString(),
+	});
+
+	if (error && error.code !== '23505') {
+		throw error;
+	}
+
+	console.log('🆕 Created account:', address);
 }

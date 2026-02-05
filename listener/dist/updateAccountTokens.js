@@ -1,9 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.syncAccountToken = syncAccountToken;
-const tokenMetadata_1 = require("./tokenMetadata");
+exports.applyAccountDelta = applyAccountDelta;
+exports.ensureAccountExists = ensureAccountExists;
 const _1 = require(".");
-async function syncAccountToken(address, metadata, provider, token) {
+async function applyAccountDelta(address, token, amount, type) {
+    const tokenKey = token ?? 'ETH';
+    const delta = type === 'DEPOSIT' ? amount : -amount;
     const { data, error } = await _1.supabase
         .from('ascend-accounts')
         .select('tokens')
@@ -11,33 +13,38 @@ async function syncAccountToken(address, metadata, provider, token) {
         .single();
     if (error)
         throw error;
-    const portfolioTokens = data?.tokens ?? {};
-    // ---------- TOKEN UPDATE ----------
-    if (token) {
-        portfolioTokens[token] = {
-            available_balance: metadata.available_balance,
-            symbol: metadata.symbol,
-            decimals: metadata.decimals,
-            contract_type: metadata.contract_type,
-        };
-        console.log('🪙 Synced token:', address, metadata.symbol, metadata.available_balance);
+    const tokens = data?.tokens ?? {};
+    const current = BigInt(tokens[tokenKey]?.available_balance ?? '0');
+    const newBalance = current + delta;
+    if (newBalance < 0n) {
+        throw new Error(`Negative balance detected for ${address}`);
     }
-    // ---------- ETH UPDATE (ALWAYS) ----------
-    let ethMetadata;
-    try {
-        ethMetadata = await (0, tokenMetadata_1.getMetadata)(provider, address); // no token = native
-    }
-    catch {
-        console.log('⚠ ETH refresh failed');
-    }
+    tokens[tokenKey] = {
+        available_balance: newBalance.toString(),
+    };
     const { error: updateError } = await _1.supabase
         .from('ascend-accounts')
-        .update({
-        tokens: portfolioTokens,
-        balance: ethMetadata?.available_balance,
-    })
+        .update({ tokens })
         .eq('address', address);
     if (updateError)
         throw updateError;
-    console.log('💰 Synced ETH:', address, ethMetadata?.available_balance);
+    console.log(`💰 ${type} ${tokenKey}:`, address, current.toString(), '→', newBalance.toString());
+}
+async function ensureAccountExists(address) {
+    const { data } = await _1.supabase
+        .from('ascend-accounts')
+        .select('address')
+        .eq('address', address)
+        .maybeSingle();
+    if (data)
+        return;
+    const { error } = await _1.supabase.from('ascend-accounts').insert({
+        address,
+        tokens: {},
+        created_at: new Date().toISOString(),
+    });
+    if (error && error.code !== '23505') {
+        throw error;
+    }
+    console.log('🆕 Created account:', address);
 }

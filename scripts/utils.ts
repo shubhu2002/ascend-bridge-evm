@@ -12,11 +12,11 @@ function ensureFile() {
   }
 
   if (!fs.existsSync(file)) {
-    fs.writeFileSync(file, JSON.stringify({ vault: "", token: "" }, null, 2));
+    fs.writeFileSync(file, JSON.stringify({ vault: "", token: "", owner: "" }, null, 2));
   }
 }
 
-export function saveAddresses(data: { vault?: string; token?: string }) {
+export function saveAddresses(data: { vault?: string; token?: string; owner?:string; }) {
   ensureFile();
 
   const existing = JSON.parse(fs.readFileSync(file, "utf-8"));

@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CONTRACT_ADDRESS = exports.supabase = exports.ABI = void 0;
+exports.ABI = exports.supabase = exports.CONTRACT_ADDRESS = void 0;
 exports.startListener = startListener;
 const ethers_1 = require("ethers");
 const path_1 = __importDefault(require("path"));
@@ -46,27 +46,31 @@ const updateAccountTokens_1 = require("./updateAccountTokens");
 const supabase_js_1 = require("@supabase/supabase-js");
 const dotenv = __importStar(require("dotenv"));
 dotenv.config();
+const file = path_1.default.join(__dirname, '../../deployments/addresses.json');
+exports.CONTRACT_ADDRESS = JSON.parse(fs_1.default.readFileSync(file, 'utf-8')).vault;
+exports.supabase = (0, supabase_js_1.createClient)(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+// ========== CONFIGURATION ============
 exports.ABI = [
     'event DepositETH(address indexed from, uint256 amount)',
     'event WithdrawETH(address indexed to, uint256 amount)',
     'event DepositERC20(address indexed token, address indexed from, uint256 amount)',
     'event WithdrawERC20(address indexed token, address indexed to, uint256 amount)',
 ];
-exports.supabase = (0, supabase_js_1.createClient)(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
-const file = path_1.default.join(__dirname, '../../deployments/addresses.json');
-exports.CONTRACT_ADDRESS = JSON.parse(fs_1.default.readFileSync(file, 'utf-8')).vault;
+let lastProcessedBlock = 0;
 const provider = new ethers_1.ethers.JsonRpcProvider(process.env.BUILDBEAR_HTTP_RPC);
 const contract = new ethers_1.ethers.Contract(exports.CONTRACT_ADDRESS, exports.ABI, provider);
-let lastProcessedBlock = 0;
 async function handleEvent(type, token, from, to, amount, ev) {
-    const metadata = await (0, tokenMetadata_1.getMetadata)(provider, from, token ?? undefined);
-    console.log({ metadata });
+    const metadata = await (0, tokenMetadata_1.getMetadata)(provider, token ?? undefined);
+    const account = type === 'DEPOSIT' ? from : to;
+    await (0, updateAccountTokens_1.ensureAccountExists)(account);
     try {
         const { data, error } = await exports.supabase
             .from('evm_birdge_events')
             .insert({
             contract_address: exports.CONTRACT_ADDRESS,
+            account_address: account, // NEW FK SAFE
             tx_hash: ev.transactionHash,
+            log_index: ev.index,
             event_type: type,
             from_address: from,
             to_address: to,
@@ -84,18 +88,20 @@ async function handleEvent(type, token, from, to, amount, ev) {
             console.error('❌ Supabase insert error:', error);
             throw error;
         }
-        console.log('✅ Supabase insert success:', data);
+        console.log('✅ Event stored:', data);
     }
     catch (error) {
         console.log(error);
+        return;
     }
-    console.log(`Saved ${type}`, metadata.symbol, amount.toString());
-    await (0, updateAccountTokens_1.syncAccountToken)(from, metadata, provider, token || null);
+    await (0, updateAccountTokens_1.applyAccountDelta)(type === 'DEPOSIT' ? from : to, token, amount, type);
 }
 async function startListener() {
     lastProcessedBlock = await provider.getBlockNumber();
+    console.log('lastProcessedBlock - ', lastProcessedBlock);
     let latestBlock = 0;
     setInterval(async () => {
+        latestBlock = await provider.getBlockNumber();
         console.log('⛏ polling...');
         try {
             latestBlock = await provider.getBlockNumber();

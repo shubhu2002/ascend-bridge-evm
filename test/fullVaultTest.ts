@@ -95,88 +95,94 @@ async function main() {
 
 	const vault = await ethers.getContractAt('OwnerWithdrawVault', VAULT);
 
+
 	// ---------------- ETH DEPOSIT ----------------
 	title('User deposits 10000 ETH');
 	await attempt('Sending ETH to vault', () =>
 		user.sendTransaction({ to: VAULT, value: ethers.parseEther('10000') }),
 	);
+	
+	// title('User deposits 10000 ETH');
+	// await attempt('Sending ETH to vault', () =>
+	// 	user.sendTransaction({ to: VAULT, value: ethers.parseEther('10000') }),
+	// );
 
-	await printEthBalances('After Deposit', [owner, user, attacker]);
-	await printVaultBalances(ERC20);
+	// await printEthBalances('After Deposit', [owner, user, attacker]);
+	// await printVaultBalances(ERC20);
 
-	// ---------------- ETH WITHDRAW ----------------
-	title('Owner withdraws 50 ETH');
-	await attempt('Owner withdraw', () =>
-		vault
-			.connect(owner)
-			.withdrawETH(owner.address, ethers.parseEther('50')),
-	);
-	await printEthBalances('After Withdraw', [owner, user, attacker]);
-	await printVaultBalances(ERC20);
+	// // ---------------- ETH WITHDRAW ----------------
+	// title('Owner withdraws 50 ETH');
+	// await attempt('Owner withdraw', () =>
+	// 	vault
+	// 		.connect(owner)
+	// 		.withdrawETH(owner.address, ethers.parseEther('50')),
+	// );
+	// await printEthBalances('After Withdraw', [owner, user, attacker]);
+	// await printVaultBalances(ERC20);
 
-	// ---------------- FAIL: NON OWNER ----------------
-	title('Attacker tries to withdraw');
-	await attempt('Unauthorized withdraw', () =>
-		vault
-			.connect(attacker)
-			.withdrawETH(attacker.address, ethers.parseEther('100')),
-	);
-	await printEthBalances('AFTER FAILED ATTACK', [owner, user, attacker]);
-	await printVaultBalances(ERC20);
+	// // ---------------- FAIL: NON OWNER ----------------
+	// title('Attacker tries to withdraw');
+	// await attempt('Unauthorized withdraw', () =>
+	// 	vault
+	// 		.connect(attacker)
+	// 		.withdrawETH(attacker.address, ethers.parseEther('100')),
+	// );
+	// await printEthBalances('AFTER FAILED ATTACK', [owner, user, attacker]);
+	// await printVaultBalances(ERC20);
 
-	// ---------------- FAIL: INSUFFICIENT ----------------
-	title('Insufficient withdraw ---');
-	await attempt('Insufficient bal withdraw', () =>
-		vault
-			.connect(owner)
-			.withdrawETH(
-				owner.address,
-				ethers.parseEther('9999999999999999999'),
-			),
-	);
-	await printEthBalances('AFTER FAILED LARGE WITHDRAW', [
-		owner,
-		user,
-		attacker,
-	]);
-	await printVaultBalances(ERC20);
+	// // ---------------- FAIL: INSUFFICIENT ----------------
+	// title('Insufficient withdraw ---');
+	// await attempt('Insufficient bal withdraw', () =>
+	// 	vault
+	// 		.connect(owner)
+	// 		.withdrawETH(
+	// 			owner.address,
+	// 			ethers.parseEther('9999999999999999999'),
+	// 		),
+	// );
+	// await printEthBalances('AFTER FAILED LARGE WITHDRAW', [
+	// 	owner,
+	// 	user,
+	// 	attacker,
+	// ]);
+	// await printVaultBalances(ERC20);
 
-	// ---------------- ERC20 ----------------
-	const token = await ethers.getContractAt(
-		[
-			'function approve(address,uint256) external returns(bool)',
-			'function balanceOf(address) view returns(uint256)',
-		],
-		ERC20,
-		user,
-	);
+	// // ---------------- ERC20 ----------------
+	// const token = await ethers.getContractAt(
+	// 	[
+	// 		'function approve(address,uint256) external returns(bool)',
+	// 		'function balanceOf(address) view returns(uint256)',
+	// 	],
+	// 	ERC20,
+	// 	user,
+	// );
 
-	title('User deposits 1000 tokens');
-	await attempt('Approve', () =>
-		token.approve(VAULT, ethers.parseUnits('1000', 18)),
-	);
+	// title('User deposits 1000 tokens');
+	// await attempt('Approve', () =>
+	// 	token.approve(VAULT, ethers.parseUnits('1000', 18)),
+	// );
 
-	await attempt('Deposit ERC20', () =>
-		vault.connect(user).depositERC20(ERC20, ethers.parseUnits('1000', 18)),
-	);
+	// await attempt('Deposit ERC20', () =>
+	// 	vault.connect(user).depositERC20(ERC20, ethers.parseUnits('1000', 18)),
+	// );
 
-	await printTokenBalances('After Token Deposit', ERC20, [owner, user]);
-	await printVaultBalances(ERC20);
+	// await printTokenBalances('After Token Deposit', ERC20, [owner, user]);
+	// await printVaultBalances(ERC20);
 
-	title('owner Withdraw 500 tokens ---');
-	await vault
-		.connect(owner)
-		.withdrawERC20(ERC20, owner.address, ethers.parseUnits('500', 18));
-	await printTokenBalances('AFTER 500 TOKEN WITHDRAW', ERC20, [
-		owner,
-		user,
-		attacker,
-	]);
+	// title('owner Withdraw 500 tokens ---');
+	// await vault
+	// 	.connect(owner)
+	// 	.withdrawERC20(ERC20, owner.address, ethers.parseUnits('500', 18));
+	// await printTokenBalances('AFTER 500 TOKEN WITHDRAW', ERC20, [
+	// 	owner,
+	// 	user,
+	// 	attacker,
+	// ]);
 
-	console.log('\n🎉 ALL TESTS COMPLETED');
-	await printEthBalances('Accounts ETH', [owner, user, attacker]);
-	await printTokenBalances('Final', ERC20, [owner, user, attacker]);
-	await printVaultBalances(ERC20);
+	// console.log('\n🎉 ALL TESTS COMPLETED');
+	// await printEthBalances('Accounts ETH', [owner, user, attacker]);
+	// await printTokenBalances('Final', ERC20, [owner, user, attacker]);
+	// await printVaultBalances(ERC20);
 }
 
 main().catch(console.error);

@@ -1,19 +1,20 @@
 import { ethers } from 'hardhat';
+import fs from 'fs';
 import { saveAddresses } from './utils';
-async function main() {
-	const [owner, user] = await ethers.getSigners();
 
-	console.log('Owner:', owner.address);
-	console.log('User :', user.address);
+async function main() {
+	const [deployer] = await ethers.getSigners();
+
+	console.log('Deploying token from:', deployer.address);
 
 	const Token = await ethers.getContractFactory('TestToken');
-	const token = await Token.deploy(user.address); // 👈 mint to user
+	const token = await Token.deploy(deployer.address);
 	await token.waitForDeployment();
 
-	const addr = await token.getAddress();
-	console.log('Token deployed:', addr);
+	const tokenAddr = await token.getAddress();
+	console.log('Token deployed:', tokenAddr);
 
-	saveAddresses({ token: addr });
+	saveAddresses({ token: tokenAddr });
 }
 
 main().catch(console.error);
