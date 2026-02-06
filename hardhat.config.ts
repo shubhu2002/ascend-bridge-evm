@@ -23,9 +23,9 @@ const config: HardhatUserConfig = {
 				network: 'buildbear',
 				chainId: Number(process.env.CHAIN_ID!),
 				urls: {
-					apiURL: 'https://rpc.buildbear.io/verify/etherscan/worried-wong-7a54908a',
+					apiURL: `https://rpc.buildbear.io/verify/etherscan/${process.env.BUILDBEAR_NAME! as string}`,
 					browserURL:
-						'https://explorer.buildbear.io/worried-wong-7a54908a',
+						`https://explorer.buildbear.io/${process.env.BUILDBEAR_NAME! as string}`,
 				},
 			},
 		],

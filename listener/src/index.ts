@@ -1,22 +1,22 @@
 import { ethers, EventLog } from 'ethers';
 import path from 'path';
 import fs from 'fs';
-import { getMetadata } from './tokenMetadata';
-import { applyAccountDelta, ensureAccountExists } from './updateAccountTokens';
-import { createClient } from '@supabase/supabase-js';
+import {
+	applyAccountDelta,
+	ensureAccountExists,
+	getMetadata,
+	supabase,
+} from '../utils';
 
 import * as dotenv from 'dotenv';
 dotenv.config();
 
 const file = path.join(__dirname, '../../deployments/addresses.json');
-export const { vault: CONTRACT_ADDRESS } = JSON.parse(
+export const { vault: CONTRACT_ADDRESS, usdt: tokenAddress } = JSON.parse(
 	fs.readFileSync(file, 'utf-8'),
 );
 
-export const supabase = createClient(
-	process.env.SUPABASE_URL!,
-	process.env.SUPABASE_SERVICE_ROLE_KEY!,
-);
+let airdropDone = false;
 
 // ========== CONFIGURATION ============
 export const ABI = [
@@ -82,8 +82,10 @@ async function handleEvent(
 		token,
 		amount,
 		type,
+		provider,
 	);
 }
+
 export async function startListener() {
 	lastProcessedBlock = await provider.getBlockNumber();
 	console.log('lastProcessedBlock - ', lastProcessedBlock);

@@ -4,12 +4,13 @@
 	"description": "",
 	"main": "index.js",
 	"scripts": {
-		"deploy:token": "hardhat run scripts/deployToken.ts --network buildbear",
-		"deploy:vault": "hardhat run scripts/deploy.ts --network buildbear",
-		"setup": "pnpm deploy:token && pnpm deploy:vault",
-		"test:vault": "hardhat run test/fullVaultTest.ts --network buildbear",
+		"deploy:usdt": "hardhat run scripts/deployToken.ts --network buildbear",
+		"deploy:vault": "hardhat run scripts/deployVault.ts --network buildbear",
+		"deploy": "hardhat run scripts/deployAll.ts --network buildbear",
+		"test:eth": "hardhat run test/testETH.ts --network buildbear",
+		"test:usdt": "hardhat run test/testERC_20.ts --network buildbear",
 		"listener": "pnpm --filter listener dev",
-		"dev": "pnpm setup && pnpm listener",
+		"run": "pnpm deploy && pnpm listener",
 		"test": "echo \"Error: no test specified\" && exit 1"
 	},
 	"keywords": [],

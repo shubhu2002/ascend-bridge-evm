@@ -17,32 +17,34 @@ ascend-bridge-evm/
 │
 ├─ contracts/                 # Solidity smart contracts
 │   ├─ OwnerWithdrawVault.sol
-│   └─ TestToken.sol
+│   └─ MockUSDT.sol
 │
 ├─ scripts/                   # Hardhat scripts
-│   ├─ deploy.ts              # deploy contract
-│   ├─ deployToken.ts         # deploy / mint TEST Token
+│   ├─ deployAll.ts           # deploy contract both token and vault
+│   ├─ deployToken.ts         # deploy / mint 1B TEST USDT Token
+│   ├─ deployVault.ts         # deploy vault contract
 │   └─ utils.ts
 │
 ├─ deployments/
-│   └─ addresses.json         # Auto‑generated contract addresses
+│   └─ addresses.json         # Auto‑generated addresses .json file
 │
 ├─ listener/                  # Indexer listening api service (separate package)
-│   ├─ dist/
-│   │   ├─ index.js
-│   │   ├─ tokenMetadata.js
-│   │   └─ updateAccountTokens.js
+│   ├─ dist/*
+│   │
 │   ├─ src/
-│   │   ├─ index.ts
-│   │   ├─ tokenMetadata.ts
-│   │   └─ updateAccountTokens.ts
+│   │   └─ index.ts
+│   │
+│   ├─ utils/
+│   │   └─ index.ts
+│   │
 │   ├─ package.json
 │   ├─ .node-version
 │   ├─ pnpm-lock.yaml
 │   └─ tsconfig.json
 │
 ├─ test/
-│   └─ fullVaultTest.ts
+│   ├─ testERC_20.ts
+│   └─ testETH.ts
 │ 
 ├─ hardhat.config.ts
 ├─ package.json
@@ -80,6 +82,8 @@ Accounts required:
 
 - BuildBear sandbox (EVM)
 - Supabase project
+- TREASURY_OWNER_PK
+- TREASURY_OWNER_ADDRESS
 
 Install dependencies:
 
@@ -97,23 +101,17 @@ Create TWO `.env` files.
 
 ### Root `.env` (Hardhat + scripts)
 
-```
-BUILDBEAR_HTTP_RPC=https://rpc.buildbear.io/your-sandbox
-CHAIN_ID=1337 (Mainnet) / 31337(Testnet)
-BUILDBEAR_MNEMONIC="your sandbox mnemonic words"
+```bash
+cp .env.example .env
 ```
 
 ---
 
 ### listener/.env (Indexer backend)
 
+```bash
+cp .env.example .env
 ```
-BUILDBEAR_HTTP_RPC=https://rpc.buildbear.io/your-sandbox
-SUPABASE_URL=https://xxxx.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-```
-
-⚠️ Must use **service_role** key — anon will fail inserts.
 
 ---
 
@@ -122,19 +120,39 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 Run once in SQL editor:
 
 ```sql
-create table evm_events (
+
+create table public."ascend-accounts" (
+  address text primary key,
+  balance number 
+  tokens jsonb not null default '{}'::jsonb,
+  created_at timestamp with time zone default now()
+);
+
+create table public.evm_birdge_events (
   id uuid primary key default gen_random_uuid(),
-  contract_address text,
-  tx_hash text,
-  event_type text,
+  contract_address text not null,
+  account_address text not null references public."ascend-accounts"(address),
+  tx_hash text not null,
+  log_index integer not null,
+  event_type text not null check (event_type in ('DEPOSIT','WITHDRAW')),
   from_address text,
   to_address text,
   token text,
-  amount numeric,
-  block_number bigint,
-  created_at timestamp default now()
+  amount numeric not null,
+  block_number bigint not null,
+  metadata jsonb,
+  created_at timestamp with time zone default now()
 );
 ```
+
+---
+
+## ⛽ Fund Wallets
+
+Fund via BuildBear faucet:
+
+Treasury: ≥ 5 ETH\
+User: ≥ 1 ETH
 
 ---
 
@@ -143,13 +161,14 @@ create table evm_events (
 ### 1️⃣ Deploy contracts
 
 ```
-pnpm run setup
+pnpm run deploy
 ```
 
 This will:
-- Deploy TestToken (minted to user)
+- Deploy USDT test Token (minted to TEST_USER_ADDRESS)
 - Deploy Vault
 - Save addresses to `deployments/addresses.json`
+- Automatically sends **1,000,000 TEST USDT** to the test user.
 
 ---
 
@@ -167,18 +186,21 @@ Note : keep the terminal running
 ### 3️⃣ Run full integration test
 
 ```
-pnpm run test:vault
+pnpm run test:eth
 ```
 
 Tests include:
 - ETH deposit
 - ETH withdraw
-- Non‑owner withdraw (fail)
-- Insufficient withdraw (fail)
-- ERC20 deposit
-- ERC20 withdraw
-- ERC20 insufficient withdraw (fail)
 
+
+```
+pnpm run test:usdt
+```
+
+Tests include:
+- USDT deposit
+- USDT withdraw
 ---
 
 ## 🧪 Expected Flow
@@ -188,33 +210,14 @@ Tests include:
 3. Listener captures events
 4. Supabase table fills
 
-Final DB should contain normalized rows:
-
-| event_type | token | meaning |
-|---------|------|------|
-| DEPOSIT | null | ETH deposit |
-| WITHDRAW | null | ETH withdraw |
-| DEPOSIT | token addr | ERC20 deposit |
-| WITHDRAW | token addr | ERC20 withdraw |
-
 ---
 
-## 🛠 Useful Commands
-
-| Command | Purpose |
-|------|------|
-| pnpm run setup | Deploy contracts |
-| pnpm run listener | Start indexer |
-| pnpm run test:vault | Run full test |
-| pnpm install | Install deps |
-
----
 
 ## 🧩 Notes
 
 - Listener uses HTTP polling (BuildBear has no WebSocket support)
 - DB acts only as mirror — funds security enforced on‑chain
-- Token column NULL means native ETH
+- Token column NULL means native ETH (evm_brige_events)
 
 ---
 
@@ -226,3 +229,26 @@ Contract → Events → Listener → Database
 
 This mirrors how production custody/indexer systems operate.
 
+
+---
+
+## 👨‍💻 Author / Develop By
+
+**Shubhanshu Saxena**  
+GitHub: https://github.com/shubhu2002
+
+---
+
+
+## 🧠 Project Purpose
+
+This project demonstrates a minimal exchange-style custody architecture:
+
+Blockchain → Settlement Layer  
+Indexer → Event Processor  
+Database → Ownership Ledger  
+Backend → Withdrawal Authority
+
+Designed for learning how real exchanges, bridges, and prediction markets manage balances safely without trusting wallet state.
+
+---

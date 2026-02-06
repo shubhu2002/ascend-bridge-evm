@@ -19,17 +19,16 @@ async function main() {
   /*                                USER WALLET                                 */
   /* -------------------------------------------------------------------------- */
 
-  // random test user
-  const user = ethers.Wallet.createRandom().connect(provider);
-  console.log("User :", user.address);
+  const user = new ethers.Wallet(process.env.TEST_USER_PK!, provider);
+	console.log('Test User:', user.address);
 
   // fund user from owner
-  console.log("\nFunding user...");
-  const fundTx = await owner.sendTransaction({
-    to: user.address,
-    value: ethers.parseEther("2"),
-  });
-  await fundTx.wait();
+  // console.log("\nFunding user...");
+  // const fundTx = await owner.sendTransaction({
+  //   to: user.address,
+  //   value: ethers.parseEther("2"),
+  // });
+  // await fundTx.wait();
 
   /* -------------------------------------------------------------------------- */
   /*                               LOAD CONTRACT                                */

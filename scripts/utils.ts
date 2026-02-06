@@ -16,7 +16,7 @@ function ensureFile() {
   }
 }
 
-export function saveAddresses(data: { vault?: string; token?: string; owner?:string; }) {
+export function saveAddresses(data: { vault?: string; owner?:string; usdt?:string }) {
   ensureFile();
 
   const existing = JSON.parse(fs.readFileSync(file, "utf-8"));
