@@ -4,8 +4,10 @@ A minimal custody-style vault + indexer system running on a BuildBear EVM sandbo
 
 It includes:
 - Solidity ETH + ERC20 vault
+- Backend withdrawal authority (server-signed)
 - Event indexer (listener)
-- Supabase persistence
+- Supabase ledger persistence
+- Secure withdrawal API
 - Automated deployment + test scripts
 
 ---
@@ -32,10 +34,14 @@ ascend-bridge-evm/
 │   ├─ dist/*
 │   │
 │   ├─ src/
-│   │   └─ index.ts
+│   │   ├─ index.ts           
+│   │   ├─ listener.ts        
+│   │   └─ withdraw.ts 
 │   │
 │   ├─ utils/
-│   │   └─ index.ts
+│   │   ├─ index.ts           
+│   │   ├─ logger.ts        
+│   │   └─ security.ts 
 │   │
 │   ├─ package.json
 │   ├─ .node-version
@@ -59,12 +65,18 @@ ascend-bridge-evm/
 
 Vault Contract:
 - Anyone can deposit ETH or ERC20 tokens
-- Only owner can withdraw
+- Only vault owner can withdraw
 
 Listener:
 - Reads blockchain events
 - Normalizes to `DEPOSIT` / `WITHDRAW`
 - Saves into Supabase DB
+
+Backend API:
+- Verifies signed withdrawal request
+- Checks DB balance
+- Prevents parallel withdrawals
+- Signs blockchain transaction
 
 Database becomes a **ledger mirror** of the vault.
 
@@ -82,6 +94,8 @@ Accounts required:
 
 - BuildBear sandbox (EVM)
 - Supabase project
+
+Important ENV's required:
 - TREASURY_OWNER_PK
 - TREASURY_OWNER_ADDRESS
 
@@ -205,10 +219,13 @@ Tests include:
 
 ## 🧪 Expected Flow
 
-1. Test script sends transactions
-2. Vault emits events
-3. Listener captures events
-4. Supabase table fills
+### Deposit:
+
+User → Contract → Event → Listener → DB balance increases
+
+### Withdraw:
+
+User → API → Verified → Contract → Event → Listener → DB balance decreases
 
 ---
 
@@ -218,21 +235,22 @@ Tests include:
 - Listener uses HTTP polling (BuildBear has no WebSocket support)
 - DB acts only as mirror — funds security enforced on‑chain
 - Token column NULL means native ETH (evm_brige_events)
+- Contract is settlement layer only
 
 ---
 
 ## 📌 Summary
 
-You now have a reproducible local blockchain indexer stack:
+This project replicates a simplified exchange custody model:
 
-Contract → Events → Listener → Database
-
-This mirrors how production custody/indexer systems operate.
-
+Blockchain → Settlement
+Indexer → Accounting
+Database → Ledger
+Backend → Withdrawal Authority
 
 ---
 
-## 👨‍💻 Author / Develop By
+## 👨‍💻 Author / Developed By
 
 **Shubhanshu Saxena**  
 GitHub: https://github.com/shubhu2002
@@ -242,13 +260,6 @@ GitHub: https://github.com/shubhu2002
 
 ## 🧠 Project Purpose
 
-This project demonstrates a minimal exchange-style custody architecture:
-
-Blockchain → Settlement Layer  
-Indexer → Event Processor  
-Database → Ownership Ledger  
-Backend → Withdrawal Authority
-
-Designed for learning how real exchanges, bridges, and prediction markets manage balances safely without trusting wallet state.
+Educational demonstration of how real exchanges, bridges and custodial systems safely manage balances without trusting wallet state.
 
 ---

@@ -1,6 +1,8 @@
-import { Contract, ethers, parseUnits, Wallet } from 'ethers';
+import { ethers, formatUnits } from 'ethers';
 import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
+import path from 'path';
+import fs from 'fs';
 
 dotenv.config();
 
@@ -9,9 +11,38 @@ export const supabase = createClient(
 	process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
 
+export const ABI = [
+	// ===== WRITE FUNCTIONS =====
+	'function withdrawETH(address to, uint256 amount)',
+	'function withdrawERC20(address token, address to, uint256 amount)',
+
+	// ===== OPTIONAL (read) =====
+	'function owner() view returns(address)',
+
+	// ===== EVENTS =====
+
+	'event DepositETH(address indexed from, uint256 amount)',
+	'event WithdrawETH(address indexed to, uint256 amount)',
+	'event DepositERC20(address indexed token, address indexed from, uint256 amount)',
+	'event WithdrawERC20(address indexed token, address indexed to, uint256 amount)',
+];
+
+const file = path.join(__dirname, '../../deployments/addresses.json');
+export const { vault: CONTRACT_ADDRESS, usdt: tokenAddress } = JSON.parse(
+	fs.readFileSync(file, 'utf-8'),
+);
+
 type EventType = 'DEPOSIT' | 'WITHDRAW';
 
 const cache = new Map<string, any>();
+
+export function formatTokenAmount(
+	amount: bigint,
+	decimals: number,
+	symbol: string,
+) {
+	return `${formatUnits(amount, decimals)} ${symbol}`;
+}
 
 export async function getMetadata(provider: ethers.Provider, token?: string) {
 	// Native ETH
@@ -85,11 +116,13 @@ export async function applyAccountDelta(
 	provider?: ethers.Provider,
 ) {
 	console.log('provider exists?', !!provider);
+	const isToken = token !== null;
 	const tokenKey = token ?? 'ETH';
 	const delta = type === 'DEPOSIT' ? amount : -amount;
+
 	const { data, error } = await supabase
 		.from('ascend-accounts')
-		.select('tokens')
+		.select('tokens, balance')
 		.eq('address', address)
 		.single();
 
@@ -125,20 +158,27 @@ export async function applyAccountDelta(
 	tokens[tokenKey].available_balance = newBalance.toString();
 	console.log({ tokens });
 
+	const updatePayload: any = { tokens };
+
+	if (isToken) {
+		updatePayload.balance = Number(newBalance);
+	}
+
 	const { error: updateError } = await supabase
 		.from('ascend-accounts')
-		.update({ tokens })
+		.update(updatePayload)
 		.eq('address', address);
 
 	if (updateError) throw updateError;
 
+	const symbol = tokens[tokenKey].symbol;
+	const decimals = tokens[tokenKey].decimals;
+
 	console.log(
-		`💰 ${type} ${tokenKey}:`,
+		`💰 ${type} ${symbol}:`,
 		address,
-		current.toString(),
+		formatTokenAmount(current, decimals, symbol),
 		'→',
-		newBalance.toString(),
+		formatTokenAmount(newBalance, decimals, symbol),
 	);
 }
-
-
