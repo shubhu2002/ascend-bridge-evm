@@ -4,9 +4,11 @@ import cors from 'cors';
 import * as dotenv from 'dotenv';
 dotenv.config();
 
-import logger from '../utils/logger';
-import { startListener } from './listener';
-import { withdraw } from './withdraw';
+import { withdraw } from '@/api/withdraw';
+import { startListener } from '@/listeners/contract-deposits';
+import { StartMiddlemanListener } from './listeners/middleman-deposits';
+
+import logger from '@/utils/logger';
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -23,11 +25,12 @@ app.get('/', async (req, res) => {
 	});
 });
 
-app.post("/withdraw", withdraw);
+app.post('/withdraw', withdraw);
 
 const server = app.listen(PORT, () => {
 	logger.info(`Server running on ${PORT}`);
 	startListener();
+	StartMiddlemanListener();
 });
 
 process.on('SIGTERM', () => {

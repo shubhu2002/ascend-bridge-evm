@@ -1,16 +1,18 @@
 import { Request, Response } from 'express';
 import { ethers } from 'ethers';
-import * as dotenv from 'dotenv';
 
-import { supabase, ABI, CONTRACT_ADDRESS } from '../utils';
-import logger from '../utils/logger';
-import { acquireWithdrawLock, releaseWithdrawLock } from '../utils/security';
+import { supabase } from '@/supabase';
 
-dotenv.config();
+import logger from '@/utils/logger';
+import { CONTRACTS_ABI } from '@/utils/abis';
+import { CONTRACT_ADDRESS, ownerWallet } from '@/utils';
+import { acquireWithdrawLock, releaseWithdrawLock } from '@/utils/security';
 
-const provider = new ethers.JsonRpcProvider(process.env.BUILDBEAR_HTTP_RPC!);
-const ownerWallet = new ethers.Wallet(process.env.TREASURY_OWNER_PK!, provider);
-const vaultContract = new ethers.Contract(CONTRACT_ADDRESS, ABI, ownerWallet);
+export const vaultContract = new ethers.Contract(
+	CONTRACT_ADDRESS,
+	CONTRACTS_ABI,
+	ownerWallet,
+);
 
 export async function withdraw(req: Request, res: Response) {
 	const { address, token, amount, message, signature } = req.body;

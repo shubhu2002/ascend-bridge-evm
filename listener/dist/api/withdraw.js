@@ -1,51 +1,17 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.vaultContract = void 0;
 exports.withdraw = withdraw;
 const ethers_1 = require("ethers");
-const dotenv = __importStar(require("dotenv"));
-const utils_1 = require("../utils");
+const supabase_1 = require("../supabase");
 const logger_1 = __importDefault(require("../utils/logger"));
+const abis_1 = require("../utils/abis");
+const utils_1 = require("../utils");
 const security_1 = require("../utils/security");
-dotenv.config();
-const provider = new ethers_1.ethers.JsonRpcProvider(process.env.BUILDBEAR_HTTP_RPC);
-const ownerWallet = new ethers_1.ethers.Wallet(process.env.TREASURY_OWNER_PK, provider);
-const vaultContract = new ethers_1.ethers.Contract(utils_1.CONTRACT_ADDRESS, utils_1.ABI, ownerWallet);
+exports.vaultContract = new ethers_1.ethers.Contract(utils_1.CONTRACT_ADDRESS, abis_1.CONTRACTS_ABI, utils_1.ownerWallet);
 async function withdraw(req, res) {
     const { address, token, amount, message, signature } = req.body;
     if (!address || !amount || !message || !signature)
@@ -56,7 +22,7 @@ async function withdraw(req, res) {
         });
     }
     try {
-        const { data, error } = await utils_1.supabase
+        const { data, error } = await supabase_1.supabase
             .from('ascend-accounts')
             .select('tokens, balance')
             .eq('address', address)
@@ -75,7 +41,7 @@ async function withdraw(req, res) {
         let tx;
         if (!token) {
             // ETH
-            tx = await vaultContract.withdrawETH(signer, requestedBalance);
+            tx = await exports.vaultContract.withdrawETH(signer, requestedBalance);
             logger_1.default.info('🚀 Sending ETH withdraw...', {
                 address,
                 token,
@@ -84,7 +50,7 @@ async function withdraw(req, res) {
         }
         else {
             // ERC20
-            tx = await vaultContract.withdrawERC20(token, signer, requestedBalance);
+            tx = await exports.vaultContract.withdrawERC20(token, signer, requestedBalance);
             logger_1.default.info('🚀 Sending USDT withdraw...', {
                 address,
                 token,

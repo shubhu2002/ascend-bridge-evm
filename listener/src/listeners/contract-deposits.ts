@@ -1,97 +1,27 @@
 import { ethers, EventLog } from 'ethers';
-import {
-	applyAccountDelta,
-	ensureAccountExists,
-	getMetadata,
-	supabase,
-} from '../utils';
-import path from 'path';
-import fs from 'fs';
 
-const file = path.join(__dirname, '../../deployments/addresses.json');
-export const { vault: CONTRACT_ADDRESS, usdt: tokenAddress } = JSON.parse(
-    fs.readFileSync(file, 'utf-8'),
+import { ethProvider, CONTRACT_ADDRESS } from '@/utils';
+import { CONTRACTS_ABI } from '@/utils/abis';
+import { saveEvent } from '@/supabase';
+
+const contract = new ethers.Contract(
+	CONTRACT_ADDRESS,
+	CONTRACTS_ABI,
+	ethProvider,
 );
-
-// ========== CONFIGURATION ============
-export const ABI = [
-	'event DepositETH(address indexed from, uint256 amount)',
-	'event WithdrawETH(address indexed to, uint256 amount)',
-	'event DepositERC20(address indexed token, address indexed from, uint256 amount)',
-	'event WithdrawERC20(address indexed token, address indexed to, uint256 amount)',
-];
-
 
 let lastProcessedBlock = 0;
 
-const provider = new ethers.JsonRpcProvider(process.env.BUILDBEAR_HTTP_RPC!);
-const contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, provider);
-
-async function handleEvent(
-	type: 'DEPOSIT' | 'WITHDRAW',
-	token: string | null,
-	from: string,
-	to: string,
-	amount: bigint,
-	ev: EventLog,
-) {
-	const metadata = await getMetadata(provider, token ?? undefined);
-	const account = type === 'DEPOSIT' ? from : to;
-
-	await ensureAccountExists(account);
-
-	try {
-		const { data, error } = await supabase
-			.from('evm_birdge_events')
-			.insert({
-				contract_address: CONTRACT_ADDRESS,
-				account_address: account, // NEW FK SAFE
-				tx_hash: ev.transactionHash,
-				log_index: ev.index,
-				event_type: type,
-				from_address: from,
-				to_address: to,
-				token: token, // NULL for native ETH
-				amount: amount.toString(),
-				block_number: ev.blockNumber,
-				metadata: metadata,
-			})
-			.select();
-
-		if (error?.code === '23505') {
-			console.log('⚠ Duplicate tx skipped:', ev.transactionHash);
-			return;
-		}
-
-		if (error) {
-			console.error('❌ Supabase insert error:', error);
-			throw error;
-		}
-		console.log('✅ Event stored:', data);
-	} catch (error) {
-		console.log(error);
-		return;
-	}
-
-	await applyAccountDelta(
-		type === 'DEPOSIT' ? from : to,
-		token,
-		amount,
-		type,
-		provider,
-	);
-}
-
 export async function startListener() {
-	lastProcessedBlock = await provider.getBlockNumber();
+	lastProcessedBlock = await ethProvider.getBlockNumber();
 	console.log('lastProcessedBlock - ', lastProcessedBlock);
 
 	let latestBlock = 0;
 	setInterval(async () => {
-		latestBlock = await provider.getBlockNumber();
+		latestBlock = await ethProvider.getBlockNumber();
 		console.log('⛏ polling...');
 		try {
-			latestBlock = await provider.getBlockNumber();
+			latestBlock = await ethProvider.getBlockNumber();
 			if (latestBlock <= lastProcessedBlock) return;
 
 			console.log(`Scanning ${lastProcessedBlock + 1} → ${latestBlock}`);
@@ -108,13 +38,15 @@ export async function startListener() {
 				const [from, amount] = ev.args;
 
 				try {
-					await handleEvent(
+					await saveEvent(
 						'DEPOSIT',
 						null,
 						from,
 						CONTRACT_ADDRESS,
 						amount,
-						ev,
+						ev.transactionHash,
+						ev.index,
+						ev.blockNumber,
 					);
 				} catch (e) {
 					console.log(
@@ -136,13 +68,15 @@ export async function startListener() {
 				const [to, amount] = ev.args;
 
 				try {
-					await handleEvent(
+					await saveEvent(
 						'WITHDRAW',
 						null,
 						CONTRACT_ADDRESS,
 						to,
 						amount,
-						ev,
+						ev.transactionHash,
+						ev.index,
+						ev.blockNumber,
 					);
 				} catch (e) {
 					console.log(
@@ -162,13 +96,16 @@ export async function startListener() {
 			for (const ev of erc20Deposits) {
 				if (!(ev instanceof EventLog)) continue;
 				const [token, from, amount] = ev.args;
-				await handleEvent(
+				console.log('listnere', ev);
+				await saveEvent(
 					'DEPOSIT',
 					token,
 					from,
 					CONTRACT_ADDRESS,
 					amount,
-					ev,
+					ev.transactionHash,
+					ev.index,
+					ev.blockNumber,
 				);
 			}
 
@@ -182,13 +119,15 @@ export async function startListener() {
 			for (const ev of erc20Withdraws) {
 				if (!(ev instanceof EventLog)) continue;
 				const [token, to, amount] = ev.args;
-				await handleEvent(
+				await saveEvent(
 					'WITHDRAW',
 					token,
 					CONTRACT_ADDRESS,
 					to,
 					amount,
-					ev,
+					ev.transactionHash,
+					ev.index,
+					ev.blockNumber,
 				);
 			}
 		} catch (err) {
